@@ -1,0 +1,135 @@
+import streamlit as st
+import google.generativeai as genai
+import fitz  # PyMuPDF para ler os POPs antigos
+import os
+import random
+from fpdf import FPDF  # Biblioteca para GERAR o PDF novo
+
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Atlas - Editora Futura", page_icon="🟣")
+
+# 1. API KEY (Cole sua chave real aqui)
+genai.configure(api_key="SUA_CHAVE_AQUI")
+
+# 2. LEITURA DOS PDFS ANTIGOS (BASE DE CONHECIMENTO)
+@st.cache_data
+def carregar_base_conhecimento():
+    texto_completo = ""
+    pasta_pops = "pops"
+    if os.path.exists(pasta_pops):
+        for ficheiro in os.listdir(pasta_pops):
+            if ficheiro.endswith(".pdf"):
+                caminho = os.path.join(pasta_pops, ficheiro)
+                doc = fitz.open(caminho)
+                for pagina in doc:
+                    texto_completo += pagina.get_text()
+                doc.close()
+    return texto_completo
+
+conhecimento_pops = carregar_base_conhecimento()
+
+# --- FUNÇÃO MESTRE PARA GERAR O LAYOUT DO PDF ---
+def criar_pdf_documento_visual(conteudo_texto, titulo_processo):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- LAYOUT CABEÇALHO ---
+    # Barra Roxa no topo (Cor da Editora Futura)
+    pdf.set_fill_color(106, 13, 173) # Tom de roxo
+    pdf.rect(0, 0, 210, 40, 'F')
+    
+    # ---- AQUI ESTÁ A ALTERAÇÃO DA SUA IMAGEM ----
+    if os.path.exists("images.jpg"):
+        pdf.image("images.jpg", 10, 5, 30) # Ajustado a posição e tamanho para o robô aparecer bem
+    
+    # Título do Documento dentro da barra roxa
+    pdf.set_font("Arial", "B", 18)
+    pdf.set_text_color(255, 255, 255) # Texto Branco
+    pdf.set_xy(45, 15)
+    pdf.cell(0, 10, f"POP OFICIAL: {titulo_processo[:30]}...", ln=True)
+    
+    # --- CONTEÚDO DO DOCUMENTO ---
+    pdf.set_xy(10, 50)
+    pdf.set_text_color(0, 0, 0) # Texto Preto
+    pdf.set_font("Arial", "", 12)
+    
+    # Limpeza básica do texto
+    texto_limpo = conteudo_texto.replace("**", "").replace("📄 ", "").replace("🛠️ ", "").replace("⚠️ ", "")
+    
+    # Escrever o conteúdo multilinhas
+    pdf.multi_cell(0, 10, texto_limpo)
+    
+    # Rodapé simples com data
+    pdf.set_y(-15)
+    pdf.set_font("Arial", "I", 8)
+    pdf.cell(0, 10, f"Gerado automaticamente pelo Agente Atlas - Editora Futura", align="C")
+    
+    return bytes(pdf.output())
+
+
+# 3. CÉREBRO DO ATLAS (PADRÃO TI)
+# 3. CÉREBRO DO ATLAS (PADRÃO TI + MAPA DA PLATAFORMA)
+instrucoes_atlas = f"""
+## Role (Papel)
+Você é o Atlas, o Analista de Processos de TI e Sistemas da plataforma Let's Learn! / Editora Futura.
+Sua função é tirar dúvidas e CRIAR novos POPs focados EXCLUSIVAMENTE no uso do sistema web. Nunca crie processos sobre edição de livros ou conteúdo editorial impresso.
+
+## Mapa do Sistema (Navegação Obrigatória)
+Ao criar o passo a passo de um POP, você deve guiar o usuário utilizando APENAS os botões e menus reais da nossa plataforma:
+* Menu Lateral Esquerdo: Início, Gestão, Perfil, Atividades, Prática, Configurações, Admin.
+* Dentro do menu 'Admin' (Administração de Usuários): Códigos de Acesso, Usuários, Professores, Roles, Tickets.
+* Dentro do menu 'Admin' (Administração de Conteúdo): Role Play, Fine-Tuning Role Play, Shorts, Exercícios isolados.
+
+## Modo de Criação de Documentos (PADRÃO TI)
+Sempre que o usuário pedir para 'criar', 'gerar' ou 'escrever' um POP, você DEVE focar em processos de sistema/software (usando o Mapa do Sistema acima) e começar a resposta EXATAMENTE com:
+'📄 DOCUMENTAÇÃO TÉCNICA (POP) - [TÍTULO CLARO]'
+E seguir a estrutura: Departamento (Sempre TI/Suporte Técnico), Objetivo, Pré-requisitos, Procedimento Operacional, Controle de Riscos.
+
+## BASE DE CONHECIMENTO OFICIAL
+{conhecimento_pops}
+"""
+
+model = genai.GenerativeModel(
+    model_name='gemini-2.5-flash',
+    system_instruction=instrucoes_atlas
+)
+
+# --- INTERFACE VISUAL DO CHAT ---
+st.markdown("<h1 style='color: #6A0DAD;'>🤖 Atlas - Especialista Editora Futura</h1>", unsafe_allow_html=True)
+st.write("Seu assistente oficial de processos e gerador de documentação técnica de TI.")
+
+if "mensagens" not in st.session_state:
+    st.session_state.mensagens = []
+
+# Mostrar as mensagens antigas
+for msg in st.session_state.mensagens:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Caixa de pergunta
+pergunta = st.chat_input("Ex: Gere um POP de instalação de impressoras", key="chat_input_atlas")
+
+if pergunta:
+    with st.chat_message("user"):
+        st.markdown(pergunta)
+    st.session_state.mensagens.append({"role": "user", "content": pergunta})
+
+    with st.chat_message("assistant"):
+        resposta = model.generate_content(pergunta)
+        texto_resposta = resposta.text
+        st.markdown(texto_resposta)
+        
+        # SE FOR UMA GERAÇÃO DE POP, ATIVA O GERADOR VISUAL DE PDF
+        if "DOCUMENTAÇÃO TÉCNICA" in texto_resposta:
+            st.info("📄 Documento detectado. Gerando o layout visual do PDF...")
+            
+            pdf_bytes = criar_pdf_documento_visual(texto_resposta, "Novo Processo Gerado")
+            
+            st.download_button(
+                label="📥 Baixar PDF com Layout Oficial da Editora Futura",
+                data=pdf_bytes,
+                file_name="POP_Oficial_Editora_Futura.pdf",
+                mime="application/pdf"
+            )
+            
+    st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
