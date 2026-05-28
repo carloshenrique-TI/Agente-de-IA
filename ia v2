@@ -1,0 +1,194 @@
+import streamlit as st
+import google.generativeai as genai
+import fitz  # PyMuPDF para ler os POPs antigos
+import os
+from fpdf import FPDF  # Biblioteca para GERAR o PDF novo
+
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Atlas - Editora Futura", page_icon="🟣")
+
+# 1. API KEY (Cole sua chave real aqui)
+genai.configure(api_key="")
+
+# 2. LEITURA DOS PDFS ANTIGOS (BASE DE CONHECIMENTO)
+@st.cache_data
+def carregar_base_conhecimento():
+    texto_completo = ""
+    pasta_pops = "pops"
+    if os.path.exists(pasta_pops):
+        for ficheiro in os.listdir(pasta_pops):
+            if ficheiro.endswith(".pdf"):
+                caminho = os.path.join(pasta_pops, ficheiro)
+                doc = fitz.open(caminho)
+                for pagina in doc:
+                    texto_completo += pagina.get_text()
+                doc.close()
+    return texto_completo
+
+conhecimento_pops = carregar_base_conhecimento()
+
+# --- FUNÇÃO MESTRE PARA GERAR O LAYOUT DO PDF ---
+def criar_pdf_documento_visual(conteudo_texto, titulo_processo):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- LAYOUT CABEÇALHO ---
+    pdf.set_fill_color(106, 13, 173) # Tom de roxo Futura
+    pdf.rect(0, 0, 210, 40, 'F')
+    
+    # Logotipo do Mascote no topo (Usando o nome exato do seu arquivo)
+    if os.path.exists("15_oVGnI3dW.jpg"):
+        pdf.image("15_oVGnI3dW.jpg", 10, 5, 30) 
+    
+    # Título do Documento
+    pdf.set_font("Arial", "B", 18)
+    pdf.set_text_color(255, 255, 255) 
+    pdf.set_xy(45, 15)
+    pdf.cell(0, 10, f"POP OFICIAL: {titulo_processo[:30]}...", ln=True)
+    
+    # --- CONTEÚDO DO DOCUMENTO (COM LEITOR DE IMAGENS) ---
+    pdf.set_xy(10, 50)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "", 12)
+    
+    # Limpeza básica do texto
+    texto_limpo = conteudo_texto.replace("**", "").replace("📄 ", "").replace("🛠️ ", "").replace("⚠️ ", "")
+    texto_limpo = texto_limpo.encode('latin-1', 'replace').decode('latin-1')
+    
+    # Lógica para inserir imagens no meio do texto
+    linhas = texto_limpo.split('\n')
+    for linha in linhas:
+        linha = linha.strip()
+        
+        # 🛡️ EVOLUÇÃO ANTI-CRASH: Quebra palavras, links ou traços gigantes que travam o PDF
+        palavras = linha.split(" ")
+        palavras_seguras = [p[:80] if len(p) > 80 else p for p in palavras]
+        linha = " ".join(palavras_seguras)
+        
+        if "[IMAGEM:" in linha:
+            try:
+                # Extrai o nome da imagem (Ex: [IMAGEM: print1.jpg])
+                nome_img = linha.split("[IMAGEM:")[1].split("]")[0].strip()
+                if os.path.exists(nome_img):
+                    pdf.ln(5)
+                    pdf.image(nome_img, x=15, w=170) # Insere a imagem grande no meio da página
+                    pdf.ln(5)
+                else:
+                    pdf.set_text_color(255, 0, 0)
+                    pdf.set_x(10)
+                    pdf.multi_cell(0, 10, f"[Aviso: A imagem '{nome_img}' não foi encontrada na pasta]", ln=True)
+                    pdf.set_text_color(0, 0, 0)
+            except:
+                pass
+        else:
+            if linha == "":
+                pdf.ln(5) # Pula a linha de forma segura se estiver vazia
+            else:
+                pdf.set_x(10) # 🛡️ Garante que o cursor sempre comece encostado na margem esquerda
+                pdf.multi_cell(0, 10, linha)
+    
+    # --- NOVO RODAPÉ COM O SEU NOME ---
+    pdf.set_y(-15)
+    pdf.set_font("Arial", "B", 8) 
+    pdf.cell(0, 10, f"Documento gerado e revisado por Carlos Henrique - Editora Futura", align="C")
+    
+    return bytes(pdf.output())
+
+
+# 3. CÉREBRO DO ATLAS (PADRÃO TI EXECUTIVO + MAPA DE SITES)
+instrucoes_atlas = f"""
+## Role (Papel)
+Você é o Atlas, o Analista de Processos Sênior de TI e Sistemas da Plataforma MrBrain / Editora Futura.
+Sua função é tirar dúvidas e CRIAR novos POPs focados EXCLUSIVAMENTE no uso dos nossos sistemas web. O seu tom deve ser corporativo, altamente profissional, limpo e estruturado.
+
+## Regras Rígidas (Correção de Escolas vs Códigos)
+1. Cadastrar uma Escola/Instituição é um processo COMPLETAMENTE DIFERENTE de gerar Códigos de Acesso. Se o usuário pedir para criar uma Escola, foque estritamente no cadastro da instituição no painel e nunca mencione códigos de acesso.
+
+## Ecossistema de Sites e Plataformas (Sua Base de Conhecimento)
+Você gerencia 4 ambientes:
+1. PLATAFORMA MRBRAIN: Nosso sistema principal (`plataforma.mrbrain.com.br`).
+2. DISKBRAIN: Dashboard e gestão (`diskbrain.editorafutura.com/dashboard.php`).
+3. FUTURA REDE DE VIVÊNCIAS: Portal educacional (`futurarededevivencias.com.br`).
+4. GOOGLE WORKSPACE: Gerenciamento de contas do Google e e-mails institucionais da empresa (`admin.google.com`).
+
+## Mapa do Sistema (Navegação na Plataforma MrBrain)
+Ao criar o passo a passo para o MrBrain, guie o usuário APENAS por estes botões reais:
+* Menu Lateral Esquerdo: Início, Gestão, Perfil, Atividades, Prática, Configurações, Admin.
+* * Submenu 'Admin': Escolas / Instituições, Cidades, Códigos de Acesso, Usuários, Professores, Roles, Tickets.
+
+## Como inserir imagens no POP
+Se o usuário pedir para colocar uma imagem no passo a passo (ex: 'coloque a imagem mascote.jpg'), insira a exata tag [IMAGEM: nome_do_arquivo.jpg] sozinha em uma linha no local solicitado.
+
+## Modo de Criação de Documentos (ESTRUTURA PROFISSIONAL)
+Sempre que pedirem para 'criar', 'escrever' ou 'gerar' um POP, use tópicos numéricos elegantes. NUNCA use palavras como [INÍCIO], [MEIO] ou [FIM]. Use a arquitetura abaixo:
+
+📄 DOCUMENTAÇÃO TÉCNICA (POP) - [TÍTULO CLARO COM O NOME DA PLATAFORMA]
+
+1. INFORMAÇÕES GERAIS
+* Departamento Responsável: TI / Suporte Técnico
+* Objetivo do Processo: [Explicação clara do processo e em qual site ele ocorre]
+* Nível de Criticidade: [Baixa, Média ou Alta]
+* Pré-requisitos: [O que o usuário precisa ter antes de começar]
+
+2. PROCEDIMENTO OPERACIONAL
+(Passo a passo cronológico com verbos no infinitivo: Acessar, Clicar, Preencher)
+1. ...
+2. ...
+
+3. VALIDAÇÃO E CONTROLE DE RISCOS
+* Validação de Sucesso: [Como saber que deu certo no sistema]
+* Controle de Riscos: [O que pode dar errado e como evitar]
+
+## Regras Rígidas (Correção de Escolas e Campos de Formulário)
+1. Cadastrar uma Escola/Instituição é um processo COMPLETAMENTE DIFERENTE de gerar Códigos de Acesso. Se o usuário pedir para criar uma Escola, foque estritamente no cadastro da instituição no painel e nunca mencione códigos de acesso.
+2. NUNCA invente campos de formulário que não existem. Ao descrever o preenchimento de dados (como o cadastro de uma Escola), NÃO inclua e NÃO mencione campos como "CNPJ", "Endereço Completo" ou "Informações de Contato". Foque apenas em pedir o "Nome da Escola" e os dados básicos reais da Plataforma MrBrain.
+## BASE DE CONHECIMENTO OFICIAL
+
+{conhecimento_pops}
+"""
+
+model = genai.GenerativeModel(
+    model_name='gemini-2.5-flash',
+    system_instruction=instrucoes_atlas
+)
+
+# --- INTERFACE VISUAL DO CHAT ---
+st.markdown("<h1 style='color: #6A0DAD;'>🤖 Atlas - Especialista Editora Futura</h1>", unsafe_allow_html=True)
+st.write("Seu assistente oficial de processos e gerador de documentação técnica de TI.")
+
+if "mensagens" not in st.session_state:
+    st.session_state.mensagens = []
+
+for msg in st.session_state.mensagens:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+pergunta = st.chat_input("Ex: Crie um POP de cadastro de escolas no MrBrain", key="chat_input_atlas")
+
+if pergunta:
+    with st.chat_message("user"):
+        st.markdown(pergunta)
+    st.session_state.mensagens.append({"role": "user", "content": pergunta})
+
+    with st.chat_message("assistant"):
+        try:
+            resposta = model.generate_content(pergunta)
+            texto_resposta = resposta.text
+        except Exception as e:
+            texto_resposta = "⚠️ **Oops!** A IA retornou uma resposta vazia ou ocorreu um erro de conexão temporário. Por favor, tente refazer a pergunta de forma mais específica."
+            
+        st.markdown(texto_resposta)
+        
+        if "DOCUMENTAÇÃO TÉCNICA" in texto_resposta:
+            st.info("📄 Documento detectado. Gerando o layout visual do PDF...")
+            
+            pdf_bytes = criar_pdf_documento_visual(texto_resposta, "Novo Processo Gerado")
+            
+            st.download_button(
+                label="📥 Baixar PDF com Layout Oficial da Editora Futura",
+                data=pdf_bytes,
+                file_name="POP_Oficial_Editora_Futura.pdf",
+                mime="application/pdf"
+            )
+            
+    st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
