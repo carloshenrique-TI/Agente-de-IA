@@ -1,0 +1,209 @@
+import streamlit as st
+import google.generativeai as genai
+import fitz  # PyMuPDF para ler os POPs antigos
+import os
+from fpdf import FPDF  # Biblioteca para GERAR o PDF novo
+from PIL import Image  # 👁️ NOVA FERRAMENTA: Permite que a IA "veja" imagens
+
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Atlas - Editora Futura", page_icon="🟣")
+
+# 1. API KEY (Cole a sua chave real aqui)
+genai.configure(api_key="AIzaSyCHw9AqNVj3vHSjDtTYVpK5zUIzByG_fwA")
+
+# Inicializa a lista de imagens na memória do Streamlit
+if "imagens_visao" not in st.session_state:
+    st.session_state.imagens_visao = []
+
+# 2. LEITURA DOS PDFS ANTIGOS (BASE DE CONHECIMENTO)
+@st.cache_data
+def carregar_base_conhecimento():
+    texto_completo = ""
+    pasta_pops = "pops"
+    if os.path.exists(pasta_pops):
+        for ficheiro in os.listdir(pasta_pops):
+            if ficheiro.endswith(".pdf"):
+                caminho = os.path.join(pasta_pops, ficheiro)
+                doc = fitz.open(caminho)
+                for pagina in doc:
+                    texto_completo += pagina.get_text()
+                doc.close()
+    return texto_completo
+
+conhecimento_pops = carregar_base_conhecimento()
+
+# --- FUNÇÃO MESTRE PARA GERAR O LAYOUT DO PDF ---
+def criar_pdf_documento_visual(conteudo_texto, titulo_processo):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    pdf.set_fill_color(106, 13, 173) # Tom de roxo Futura
+    pdf.rect(0, 0, 210, 40, 'F')
+    
+    if os.path.exists("15_oVGnI3dW.jpg"):
+        pdf.image("15_oVGnI3dW.jpg", 10, 5, 30) 
+    
+    pdf.set_font("Arial", "B", 18)
+    pdf.set_text_color(255, 255, 255) 
+    pdf.set_xy(45, 15)
+    pdf.cell(0, 10, f"POP OFICIAL: {titulo_processo[:30]}...", ln=True)
+    
+    pdf.set_xy(10, 50)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "", 12)
+    
+    texto_limpo = conteudo_texto.replace("**", "").replace("📄 ", "").replace("🛠️ ", "").replace("⚠️ ", "")
+    texto_limpo = texto_limpo.encode('latin-1', 'replace').decode('latin-1')
+    
+    linhas = texto_limpo.split('\n')
+    for linha in linhas:
+        linha = linha.strip()
+        palavras = linha.split(" ")
+        palavras_seguras = [p[:80] if len(p) > 80 else p for p in palavras]
+        linha = " ".join(palavras_seguras)
+        
+        if "[IMAGEM:" in linha:
+            try:
+                nome_img = linha.split("[IMAGEM:")[1].split("]")[0].strip()
+                if os.path.exists(nome_img):
+                    pdf.ln(5)
+                    pdf.image(nome_img, x=15, w=170)
+                    pdf.ln(5)
+                else:
+                    pdf.set_text_color(255, 0, 0)
+                    pdf.set_x(10)
+                    pdf.multi_cell(0, 10, f"[Aviso: A imagem '{nome_img}' não foi encontrada]", ln=True)
+                    pdf.set_text_color(0, 0, 0)
+            except:
+                pass
+        else:
+            if linha == "":
+                pdf.ln(5)
+            else:
+                pdf.set_x(10)
+                pdf.multi_cell(0, 10, linha)
+    
+    pdf.set_y(-15)
+    pdf.set_font("Arial", "B", 8) 
+    pdf.cell(0, 10, f"Documento gerado e revisado por Carlos Henrique - Editora Futura", align="C")
+    
+    return bytes(pdf.output())
+
+# --- BARRA LATERAL (AGORA COM BOTÃO MODERNO POPOVER) ---
+with st.sidebar:
+    st.header("📂 Configurações do Atlas")
+    st.write("Faça o upload de bases de conhecimento ou de imagens para análise.")
+    
+    if not os.path.exists("pops"):
+        os.makedirs("pops")
+        
+    # O botão de "➕" que abre uma janela flutuante
+    with st.popover("➕ Anexar Arquivos (PDF/Imagens)"):
+        novos_arquivos = st.file_uploader(
+            "Selecione seus arquivos:", 
+            type=["pdf", "jpg", "jpeg", "png"],
+            accept_multiple_files=True 
+        )
+        
+        if novos_arquivos: 
+            teve_pdf = False
+            
+            for arquivo in novos_arquivos:
+                if arquivo.name.lower().endswith(".pdf"):
+                    caminho_salvar = os.path.join("pops", arquivo.name)
+                    with open(caminho_salvar, "wb") as f:
+                        f.write(arquivo.getbuffer())
+                    st.success(f"✅ PDF salvo!")
+                    teve_pdf = True
+                    
+                else: # Se for imagem
+                    caminho_salvar = arquivo.name
+                    with open(caminho_salvar, "wb") as f:
+                        f.write(arquivo.getbuffer())
+                    st.success(f"🖼️ Imagem anexada!")
+                    
+                    st.session_state.imagens_visao.append(Image.open(arquivo))
+            
+            if teve_pdf:
+                st.cache_data.clear()
+
+# 3. CÉREBRO DO ATLAS
+instrucoes_atlas = f"""
+## Role (Papel)
+Você é o Atlas, o Analista de Processos Sênior de TI e Sistemas da Plataforma MrBrain / Editora Futura.
+Sua função é tirar dúvidas, analisar imagens (prints de erro) e CRIAR novos POPs. O seu tom deve ser corporativo.
+
+## Regras Rígidas (Correção de Escolas e Campos de Formulário)
+1. Cadastrar uma Escola/Instituição é um processo COMPLETAMENTE DIFERENTE de gerar Códigos de Acesso. 
+2. NUNCA invente campos de formulário que não existem no MrBrain (como CNPJ).
+
+## Ecossistema de Sites e Plataformas
+1. PLATAFORMA MRBRAIN (`plataforma.mrbrain.com.br`)
+2. DISKBRAIN (`diskbrain.editorafutura.com/dashboard.php`)
+3. FUTURA REDE DE VIVÊNCIAS (`futurarededevivencias.com.br`)
+4. GOOGLE WORKSPACE (`admin.google.com`)
+
+## BASE DE CONHECIMENTO OFICIAL
+{conhecimento_pops}
+"""
+
+config_seguranca = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+]
+
+model = genai.GenerativeModel(
+    model_name='gemini-2.5-flash',
+    system_instruction=instrucoes_atlas,
+    safety_settings=config_seguranca
+)
+
+# --- INTERFACE VISUAL DO CHAT ---
+st.markdown("<h1 style='color: #6A0DAD;'>🤖 Atlas - Especialista Editora Futura</h1>", unsafe_allow_html=True)
+st.write("Assistente oficial de processos e análise de sistemas da TI.")
+
+if "mensagens" not in st.session_state:
+    st.session_state.mensagens = []
+
+for msg in st.session_state.mensagens:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+pergunta = st.chat_input("Pergunte ao Atlas ou envie imagens pela barra lateral para análise...", key="chat_input_atlas")
+
+if pergunta:
+    with st.chat_message("user"):
+        st.markdown(pergunta)
+    st.session_state.mensagens.append({"role": "user", "content": pergunta})
+
+    with st.chat_message("assistant"):
+        try:
+            conteudo_enviar = [pergunta]
+            
+            if st.session_state.imagens_visao:
+                conteudo_enviar.extend(st.session_state.imagens_visao)
+                # Limpa a memória de imagens logo após enviar
+                st.session_state.imagens_visao = []
+                
+            resposta = model.generate_content(conteudo_enviar)
+            texto_resposta = resposta.text
+            
+        except Exception as e:
+            print(f"ERRO REAL NO TERMINAL: {e}")
+            texto_resposta = f"⚠️ **Oops!** Ocorreu uma falha no sistema. Detalhe do Erro: `{e}`"
+            
+        st.markdown(texto_resposta)
+        
+        if "DOCUMENTAÇÃO TÉCNICA" in texto_resposta:
+            st.info("📄 Documento detectado. Gerando o layout visual do PDF...")
+            pdf_bytes = criar_pdf_documento_visual(texto_resposta, "Novo Processo Gerado")
+            st.download_button(
+                label="📥 Descarregar PDF com Layout Oficial",
+                data=pdf_bytes,
+                file_name="POP_Oficial_Editora_Futura.pdf",
+                mime="application/pdf"
+            )
+            
+    st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
