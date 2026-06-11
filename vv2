@@ -9,7 +9,7 @@ from PIL import Image  # 👁️ NOVA FERRAMENTA: Permite que a IA "veja" imagen
 st.set_page_config(page_title="Atlas - Editora Futura", page_icon="🟣")
 
 # 1. API KEY (Cole a sua chave real aqui)
-genai.configure(api_key="AIzaSyCHw9AqNVj3vHSjDtTYVpK5zUIzByG_fwA")
+genai.configure(api_key="")
 
 # Inicializa a lista de imagens na memória do Streamlit
 if "imagens_visao" not in st.session_state:
