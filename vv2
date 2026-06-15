@@ -9,7 +9,7 @@ from PIL import Image  # 👁️ NOVA FERRAMENTA: Permite que a IA "veja" imagen
 st.set_page_config(page_title="Atlas - Editora Futura", page_icon="🟣")
 
 # 1. API KEY (Cole a sua chave real aqui)
-genai.configure(api_key="")
+genai.configure(api_key="SUA_CHAVE_AQUI")
 
 # Inicializa a lista de imagens na memória do Streamlit
 if "imagens_visao" not in st.session_state:
@@ -137,11 +137,13 @@ Sua função é tirar dúvidas, analisar imagens (prints de erro) e CRIAR novos 
 1. Cadastrar uma Escola/Instituição é um processo COMPLETAMENTE DIFERENTE de gerar Códigos de Acesso. 
 2. NUNCA invente campos de formulário que não existem no MrBrain (como CNPJ).
 
-## Ecossistema de Sites e Plataformas
+## Ecossistema de Ferramentas e Plataformas
+Você deve ter conhecimento sobre as seguintes ferramentas da Editora:
 1. PLATAFORMA MRBRAIN (`plataforma.mrbrain.com.br`)
 2. DISKBRAIN (`diskbrain.editorafutura.com/dashboard.php`)
 3. FUTURA REDE DE VIVÊNCIAS (`futurarededevivencias.com.br`)
 4. GOOGLE WORKSPACE (`admin.google.com`)
+5. TOP TEACHER: Esta não é uma ferramenta web tradicional de uso geral, mas sim uma Plataforma de Gestão de Atividades. É aqui que os ficheiros (documentos, fotos e vídeos) das atividades dos professores são descarregados para serem posteriormente tratados pela equipa, convertidos e organizados.
 
 ## BASE DE CONHECIMENTO OFICIAL
 {conhecimento_pops}
